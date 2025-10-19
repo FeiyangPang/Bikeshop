@@ -111,113 +111,163 @@ def product_list(request):
     return render(request, "shop/product_list.html", context)
 
 
-# ------------------------------- Cart ----------------------------------
+# --- Cart & Checkout helpers and views (drop-in) --------------------------
+from decimal import Decimal
+from django.http import JsonResponse, HttpResponseBadRequest
+from django.shortcuts import render, redirect, get_object_or_404
+from django.views.decorators.http import require_POST
+from django.contrib import messages
 
-@require_POST
-def add_item(request, product_id: int):
-    """Add a product to the cart. Returns JSON for AJAX, else redirects back."""
-    product = get_object_or_404(Product, id=product_id)
-    qty = request.POST.get("qty", "1")
-    try:
-        qty = max(int(qty), 1)
-    except ValueError:
-        qty = 1
+from .models import Product
 
-    cart = _cart(request)
-    cart[str(product.id)] = cart.get(str(product.id), 0) + qty
-    request.session.modified = True
+FREE_SHIP = Decimal("200.00")
 
-    if _is_ajax(request):
-        return JsonResponse({"ok": True, "count": _cart_count(cart)})
-    messages.success(request, f"Added {product.name} to cart.")
-    return redirect(request.META.get("HTTP_REFERER") or "shop:product_list")
+def _get_cart(request):
+    """Get the cart dict from session: {product_id(str): qty(int)}"""
+    cart = request.session.get("cart")
+    if not isinstance(cart, dict):
+        cart = {}
+    # normalize bad data
+    cart = {str(k): int(v) for k, v in cart.items() if int(v) > 0}
+    request.session["cart"] = cart
+    return cart
 
+def _cart_summary(request):
+    """Build a summary dict used by cart page and checkout."""
+    cart = _get_cart(request)
 
-@require_POST
-def remove_item(request, product_id: int):
-    cart = _cart(request)
-    cart.pop(str(product_id), None)
-    request.session.modified = True
-    if _is_ajax(request):
-        return JsonResponse({"ok": True, "count": _cart_count(cart), "total": str(_cart_total(cart))})
-    return redirect("shop:view_cart")
+    items = []
+    subtotal = Decimal("0.00")
 
-
-@require_POST
-def update_qty(request, product_id: int):
-    cart = _cart(request)
-    qty = request.POST.get("qty", "1")
-    try:
-        qty = int(qty)
-    except ValueError:
-        qty = 1
-    if qty <= 0:
-        cart.pop(str(product_id), None)
+    # bulk fetch products
+    if cart:
+        products = {str(p.id): p for p in Product.objects.filter(id__in=cart.keys())}
     else:
-        cart[str(product_id)] = qty
-    request.session.modified = True
-    if _is_ajax(request):
-        return JsonResponse({"ok": True, "count": _cart_count(cart), "total": str(_cart_total(cart))})
-    return redirect("shop:view_cart")
+        products = {}
 
+    for pid, qty in cart.items():
+        product = products.get(pid)
+        if not product:
+            continue
+        qty = int(qty)
+        line_total = (product.price or Decimal("0")) * qty
+        items.append({
+            "product": product,
+            "qty": qty,
+            "line_total": line_total,
+        })
+        subtotal += line_total
 
-def view_cart(request):
-    cart = _cart(request)
-    items = list(_cart_items(cart))
-    context = {
-        "items": items,
-        "cart_total": _cart_total(cart),
-        "cart_count": _cart_count(cart),
+    free_ship_remaining = max(FREE_SHIP - subtotal, Decimal("0.00"))
+    shipping = Decimal("0.00")  # change if you want paid shipping
+    total = subtotal + shipping
+
+    # expose a lot of commonly used names so existing templates pick it up
+    return {
+        "items": items,                 # list of dicts with product/qty/line_total
+        "cart_items": items,            # alias some templates use
+        "subtotal": subtotal,
+        "cart_subtotal": subtotal,      # alias
+        "cart_total": total,            # alias
+        "order_total": total,           # alias for checkout
+        "shipping": shipping,
+        "free_shipping_threshold": FREE_SHIP,
+        "free_shipping_remaining": free_ship_remaining,
+        "item_count": sum(i["qty"] for i in items),
     }
-    return render(request, "shop/cart.html", context)
 
+def cart_view(request):
+    ctx = _cart_summary(request)
+    return render(request, "shop/cart.html", ctx)
 
-# ----------------------------- Checkout --------------------------------
+@require_POST
+def cart_update_api(request):
+    """
+    JSON endpoint to change quantity or remove an item.
+    Body: { "product_id": <int>, "action": "inc|dec|set|remove", "qty": <int optional> }
+    """
+    try:
+        data = request.POST or request.json()
+    except Exception:
+        data = request.POST
+
+    pid = str(data.get("product_id"))
+    action = (data.get("action") or "").lower()
+    qty = data.get("qty")
+
+    cart = _get_cart(request)
+
+    if action == "remove":
+        cart.pop(pid, None)
+    elif action in ("inc", "dec", "set"):
+        cur = int(cart.get(pid, 0))
+        if action == "inc":
+            cur += 1
+        elif action == "dec":
+            cur -= 1
+        elif action == "set":
+            try:
+                cur = int(qty)
+            except Exception:
+                return HttpResponseBadRequest("qty must be int")
+        if cur <= 0:
+            cart.pop(pid, None)
+        else:
+            cart[pid] = cur
+    else:
+        return HttpResponseBadRequest("bad action")
+
+    request.session["cart"] = cart
+    request.session.modified = True
+    ctx = _cart_summary(request)
+
+    # convert Decimals for JSON
+    def d(x): return f"{x:.2f}"
+    return JsonResponse({
+        "ok": True,
+        "item_count": ctx["item_count"],
+        "subtotal": d(ctx["subtotal"]),
+        "shipping": d(ctx["shipping"]),
+        "total": d(ctx["order_total"]),
+        "free_shipping_remaining": d(ctx["free_shipping_remaining"]),
+        "lines": [
+            {
+                "id": i["product"].id,
+                "qty": i["qty"],
+                "line_total": d(i["line_total"]),
+            }
+            for i in ctx["items"]
+        ],
+    })
+
+@require_POST
+def cart_remove(request, product_id):
+    cart = _get_cart(request)
+    cart.pop(str(product_id), None)
+    request.session["cart"] = cart
+    request.session.modified = True
+    return redirect("shop:cart")
 
 def checkout_view(request):
-    """
-    Minimal checkout: ask for name/address/phone/email.
-    On POST, "confirm" and clear the cart, then redirect to success page.
-    """
-    cart = _cart(request)
-    items = list(_cart_items(cart))
-    if not items:
-        messages.info(request, "Your cart is empty.")
-        return redirect("shop:product_list")
-
+    ctx = _cart_summary(request)
     if request.method == "POST":
-        name = (request.POST.get("full_name") or "").strip()
-        address = (request.POST.get("address") or "").strip()
+        # very simple “payment” simulation
+        addr = (request.POST.get("address") or "").strip()
         phone = (request.POST.get("phone") or "").strip()
-        email = (request.POST.get("email") or "").strip()
-
-        # very light validation
-        if not address or not phone:
+        if not addr or not phone:
             messages.error(request, "Address and phone number are required.")
-        else:
-            request.session["last_order"] = {
-                "name": name,
-                "address": address,
-                "phone": phone,
-                "email": email,
-                "total": str(_cart_total(cart)),
-                "count": _cart_count(cart),
-            }
-            # Clear cart
-            request.session["cart"] = {}
-            request.session.modified = True
-            return redirect("shop:success")
+            return render(request, "shop/checkout.html", ctx, status=400)
 
-    context = {
-        "items": items,
-        "cart_total": _cart_total(cart),
-    }
-    return render(request, "shop/checkout.html", context)
+        # here you would create an Order; we just clear the cart
+        request.session["cart"] = {}
+        request.session.modified = True
+        return redirect("shop:success")
 
+    return render(request, "shop/checkout.html", ctx)
 
 def success_view(request):
-    order = request.session.pop("last_order", None)
-    return render(request, "shop/success.html", {"order": order})
+    return render(request, "shop/success.html", {})
+
 
 
 # ---------------------------- Auth (simple) -----------------------------
