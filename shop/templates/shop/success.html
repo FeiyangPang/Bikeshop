@@ -1,12 +1,11 @@
-{% extends "base.html" %}
+{% extends 'base.html' %}
 {% block content %}
-<div class="container my-5 text-center">
-  <h1 class="mb-3">Payment received ✅</h1>
-  <p class="lead">Thanks for your order! We’ll start packing right away.</p>
-
-  <div class="mt-4 d-flex gap-2 justify-content-center">
-    <a class="btn btn-primary" href="/">Go back shopping</a>
-    <a class="btn btn-outline-light" href="about:blank" onclick="window.close();return false;">Exit</a>
-  </div>
+<div class="card p-5 text-center">
+  <h2 class="mb-3">Payment received ✅</h2>
+  {% if order %}
+    <p class="text-muted mb-4">Thank you{% if order.full_name %}, {{ order.full_name }}{% endif %}! We’ll ship to <strong>{{ order.address }}</strong>. We’ll contact you at {{ order.phone }}{% if order.email %} / {{ order.email }}{% endif %} if needed.</p>
+  {% endif %}
+  <a class="btn btn-primary me-2" href="{% url 'shop:product_list' %}">Continue shopping</a>
+  <a class="btn btn-outline-light" href="#" onclick="window.close();return false;">Exit</a>
 </div>
 {% endblock %}
