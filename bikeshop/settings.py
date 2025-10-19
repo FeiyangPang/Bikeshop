@@ -1,37 +1,20 @@
-# bikeshop/settings.py
 from pathlib import Path
 import os
 import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# --- Ensure data dirs exist (important on Render) -------------------------
-DATA_DIR = Path("/opt/render/project/src/data")
-MEDIA_DIR = DATA_DIR / "media"
-# Create the directories if they don't exist yet
-try:
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    MEDIA_DIR.mkdir(parents=True, exist_ok=True)
-except Exception:
-    # In some build contexts this may fail silently; it’s safe to ignore
-    pass
+# ---- Security / env ----
+SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-change-me")
+DEBUG = os.getenv("DEBUG", "False") == "True"
+ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
-# ---------------------- Security / debug ---------------------------------
-SECRET_KEY = os.getenv("SECRET_KEY", "dev-insecure-change-me")
-DEBUG = os.getenv("DEBUG", "False").lower() == "true"
-
-ALLOWED_HOSTS = [h for h in os.getenv("ALLOWED_HOSTS", "").split(",") if h]
-RENDER_EXTERNAL_HOSTNAME = os.getenv("RENDER_EXTERNAL_HOSTNAME")
-if RENDER_EXTERNAL_HOSTNAME and RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS:
-    ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
-ALLOWED_HOSTS += ["localhost", "127.0.0.1", ".onrender.com"]
-
+# Helpful for HTTPS proxies (Render)
 CSRF_TRUSTED_ORIGINS = [
-    *(f"https://{h.lstrip('.')}" for h in ALLOWED_HOSTS if h and not h.startswith("*")),
-    "https://*.onrender.com",
+    *(f"https://{h}".strip() for h in ALLOWED_HOSTS if h and not h.startswith("localhost"))
 ]
 
-# ---------------------- Apps ---------------------------------------------
+# ---- Apps ----
 INSTALLED_APPS = [
     "django.contrib.admin",
     "django.contrib.auth",
@@ -42,7 +25,7 @@ INSTALLED_APPS = [
     "shop",
 ]
 
-# ---------------------- Middleware ---------------------------------------
+# ---- Middleware (WhiteNoise right after Security) ----
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "whitenoise.middleware.WhiteNoiseMiddleware",
@@ -59,7 +42,7 @@ ROOT_URLCONF = "bikeshop.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [],  # app templates only
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -74,39 +57,36 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "bikeshop.wsgi.application"
 
-# ---------------------- Database (SQLite on one Render disk) --------------
-# If DATABASE_URL is set, use it; otherwise default to SQLite on the disk.
+# ---- Database (Postgres via DATABASE_URL or SQLite fallback) ----
 DATABASES = {
     "default": dj_database_url.config(
-        default=f"sqlite:////{DATA_DIR}/db.sqlite3",
+        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
         conn_max_age=600,
     )
 }
 
-# ---------------------- Password validation -------------------------------
+# ---- Passwords / i18n ----
 AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "django.contrib.auth.password_validation.UserAttributeSimilarityValidator"},
     {"NAME": "django.contrib.auth.password_validation.MinimumLengthValidator"},
     {"NAME": "django.contrib.auth.password_validation.CommonPasswordValidator"},
     {"NAME": "django.contrib.auth.password_validation.NumericPasswordValidator"},
 ]
-
-# ---------------------- I18N ----------------------------------------------
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
 
-# ---------------------- Static / Media -----------------------------------
+# ---- Static & Media ----
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "shop" / "static"]
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 MEDIA_URL = "/media/"
-MEDIA_ROOT = MEDIA_DIR
+MEDIA_ROOT = BASE_DIR / "media"   # Mount a persistent Disk to this path on Render
 
-# ---------------------- Security behind Render proxy ----------------------
+# ---- Security behind proxy ----
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SESSION_COOKIE_SECURE = not DEBUG
 CSRF_COOKIE_SECURE = not DEBUG
