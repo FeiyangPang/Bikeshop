@@ -1,144 +1,59 @@
-{% extends "base.html" %}
-{% load static %}
-
+{% extends 'base.html' %}
 {% block content %}
-<div class="container my-5">
-
-  <h1 class="mb-4">Your cart</h1>
-
+<h2 class="fancy-title mb-3">Your Cart</h2>
+<div class="card p-3">
   {% if items %}
-  <div class="row">
-    <div class="col-lg-8">
-
-      {% for item in items %}
-      {% with p=item.product %}
-      <div class="card mb-3" data-row="{{ p.id }}">
-        <div class="card-body d-flex align-items-center gap-3">
-
-          <img
-            src="{% if p.image %}{{ p.image.url }}{% elif p.image_url %}{{ p.image_url }}{% else %}{% static 'shop/img/placeholder.png' %}{% endif %}"
-            alt="{{ p.name }}" style="width:100px;height:100px;object-fit:cover;border-radius:12px;">
-
-          <div class="flex-grow-1">
-            <div class="text-uppercase small text-muted">{{ p.category|default:"" }}</div>
-            <div class="fw-semibold fs-5">{{ p.name }}</div>
-
-            <div class="d-flex align-items-center mt-2">
-              <button class="btn btn-outline-light px-3" data-action="dec" data-id="{{ p.id }}">−</button>
-              <input class="form-control mx-2 text-center" style="width:90px;" data-qty
-                     value="{{ item.qty }}" type="number" min="1" onfocus="this.blur()">
-              <button class="btn btn-outline-light px-3" data-action="inc" data-id="{{ p.id }}">+</button>
-
-              <button class="btn btn-danger ms-3" data-action="remove" data-id="{{ p.id }}">Remove</button>
-            </div>
-          </div>
-
-          <div class="text-end">
-            <div class="fs-5">${{ item.line_total|floatformat:2 }}</div>
-            <div class="text-muted small">{{ item.qty }} × ${{ p.price|floatformat:2 }}</div>
-            <div class="mt-2"><span class="badge bg-secondary" data-line-total>${{ item.line_total|floatformat:2 }}</span></div>
-          </div>
-
-        </div>
-      </div>
-      {% endwith %}
+  <div class="table-responsive">
+    <table class="table table-dark align-middle">
+      <thead><tr><th>Product</th><th style="width:120px">Qty</th><th>Price</th><th>Subtotal</th><th></th></tr></thead>
+      <tbody>
+      {% for it in items %}
+      <tr id="row-{{ it.product.id }}">
+        <td>{{ it.product.name }}</td>
+        <td>
+          <form class="js-qty d-inline" action="{% url 'shop:update_qty' it.product.id %}" method="post">
+            {% csrf_token %}
+            <input class="form-control form-control-sm" style="width:78px" type="number" name="qty" value="{{ it.qty }}" min="0">
+          </form>
+        </td>
+        <td>${{ it.product.price }}</td>
+        <td class="sub" data-id="{{ it.product.id }}">${{ it.subtotal }}</td>
+        <td>
+          <form class="js-remove d-inline" action="{% url 'shop:remove_item' it.product.id %}" method="post">{% csrf_token %}
+            <button class="btn btn-outline-danger btn-sm">Remove</button>
+          </form>
+        </td>
+      </tr>
       {% endfor %}
-
-      <a class="btn btn-outline-light" href="/">Continue shopping</a>
-    </div>
-
-    <div class="col-lg-4">
-      <div class="card">
-        <div class="card-body">
-          <h5 class="card-title">Order summary</h5>
-
-          <div class="d-flex justify-content-between mt-3">
-            <span>Subtotal</span>
-            <span data-subtotal>${{ subtotal|floatformat:2 }}</span>
-          </div>
-
-          <div class="d-flex justify-content-between mt-2">
-            <span>Shipping</span>
-            <span>${{ shipping|floatformat:2 }}</span>
-          </div>
-
-          <hr class="my-3">
-
-          <div class="d-flex justify-content-between fs-5 fw-semibold">
-            <span>Total</span>
-            <span data-total>${{ order_total|floatformat:2 }}</span>
-          </div>
-
-          <div class="mt-3 small text-muted">
-            Free shipping at <b>${{ free_shipping_threshold|floatformat:0 }}</b>.
-            {% if free_shipping_remaining > 0 %}
-              <br>Only ${{ free_shipping_remaining|floatformat:2 }} to go!
-            {% else %}
-              <br><span class="text-success">You’ve got free shipping 🎉</span>
-            {% endif %}
-          </div>
-
-          <a class="btn btn-success w-100 mt-3" href="/checkout/">Checkout</a>
-        </div>
-      </div>
-    </div>
+      </tbody>
+    </table>
   </div>
-
+  <div class="text-end">
+    <h4>Total: $<span id="total">{{ total }}</span></h4>
+    <a class="btn btn-success" href="{% url 'shop:checkout' %}">Checkout</a>
+  </div>
   {% else %}
-    <div class="alert alert-info">Your cart is empty.</div>
-    <a class="btn btn-primary" href="/">Shop now</a>
+  <div class="text-center py-5">Your cart is empty.</div>
   {% endif %}
 </div>
 
 <script>
-function getCsrf() {
-  const m = document.cookie.match(/(^|;)\s*csrftoken=([^;]+)/);
-  return m ? decodeURIComponent(m[2]) : "";
-}
-
-async function updateLine(pid, action, qty=null) {
-  const fd = new FormData();
-  fd.append("product_id", pid);
-  fd.append("action", action);
-  if (qty !== null) fd.append("qty", qty);
-
-  const res = await fetch("/cart/update/", {
-    method: "POST",
-    headers: {"X-CSRFToken": getCsrf()},
-    body: fd
+(function(){
+  document.querySelectorAll('form.js-qty').forEach(f=>{
+    f.addEventListener('change', e=>{
+      fetch(f.action,{method:'POST',body:new FormData(f),headers:{'X-CSRFToken':window.__csrftoken,'X-Requested-With':'XMLHttpRequest'}})
+      .then(r=>r.json()).then(d=>{
+        if(d?.ok){ document.getElementById('total').textContent=d.total; const s=document.querySelector('.sub[data-id="'+f.action.split('/').slice(-2,-1)[0]+'"]'); if(s) s.textContent='$'+d.item_subtotal; window.__updateCartBadge?.(d.count); }
+      });
+    });
   });
-  if (!res.ok) return;
-  const data = await res.json();
-  if (!data.ok) return;
-
-  document.querySelectorAll("[data-subtotal]").forEach(n => n.textContent = `$${data.subtotal}`);
-  document.querySelectorAll("[data-total]").forEach(n => n.textContent = `$${data.total}`);
-
-  const visible = new Set(data.lines.map(l => String(l.id)));
-  document.querySelectorAll("[data-row]").forEach(row => {
-    const id = row.getAttribute("data-row");
-    if (!visible.has(id)) row.remove();
+  document.querySelectorAll('form.js-remove').forEach(f=>{
+    f.addEventListener('submit', e=>{
+      e.preventDefault();
+      fetch(f.action,{method:'POST',body:new FormData(f),headers:{'X-CSRFToken':window.__csrftoken,'X-Requested-With':'XMLHttpRequest'}})
+      .then(r=>r.json()).then(d=>{ if(d?.ok){ f.closest('tr').remove(); document.getElementById('total').textContent=d.total; window.__updateCartBadge?.(d.count); }});
+    });
   });
-
-  data.lines.forEach(line => {
-    const row = document.querySelector(`[data-row='${line.id}']`);
-    if (!row) return;
-    const qty = row.querySelector("[data-qty]");
-    const lt  = row.querySelector("[data-line-total]");
-    if (qty) qty.value = line.qty;
-    if (lt)  lt.textContent = `$${line.line_total}`;
-  });
-}
-
-document.addEventListener("click", (e) => {
-  const btn = e.target.closest("[data-action]");
-  if (!btn) return;
-  const pid = btn.getAttribute("data-id");
-  const action = btn.getAttribute("data-action");
-  if (["inc","dec","remove"].includes(action)) {
-    e.preventDefault();
-    updateLine(pid, action);
-  }
-});
+})();
 </script>
 {% endblock %}
