@@ -9,9 +9,10 @@ from django.contrib.auth.forms import AuthenticationForm, UserCreationForm
 from django.core.paginator import Paginator
 from django.http import JsonResponse, Http404
 from django.shortcuts import get_object_or_404, redirect, render
+from django.shortcuts import render
+from .models import Product
 from django.views.decorators.http import require_http_methods, require_POST
 
-from .models import Brand, Product
 
 
 # ----------------------------- Helpers ---------------------------------
@@ -86,29 +87,19 @@ def _is_ajax(request) -> bool:
 
 # ----------------------------- Catalog ---------------------------------
 
+from django.shortcuts import render
+from .models import Product
+
 def product_list(request):
-    """Home/catalog page with optional search & category filter + pagination."""
-    qs = Product.objects.all().order_by("-id")
+    """
+    Minimal, safe product listing. Renders shop/product_list.html
+    and does not depend on any special context.
+    """
+    products = Product.objects.all().order_by("-id")
+    return render(request, "shop/product_list.html", {
+        "products": products
+    })
 
-    q = (request.GET.get("q") or "").strip()
-    if q:
-        qs = qs.filter(name__icontains=q)
-
-    cat = (request.GET.get("cat") or "").strip()
-    if cat:
-        qs = qs.filter(category=cat)
-
-    paginator = Paginator(qs, 12)
-    page_obj = paginator.get_page(request.GET.get("page"))
-
-    context = {
-        "products": page_obj,
-        "categories": bike_categories(),
-        "q": q,
-        "active_cat": cat,
-        "cart_count": _cart_count(_cart(request)),
-    }
-    return render(request, "shop/product_list.html", context)
 
 
 # --- Cart & Checkout helpers and views (drop-in) --------------------------
