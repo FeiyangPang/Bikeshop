@@ -1,4 +1,4 @@
-{% extends "shop/base.html" %}
+{% extends "base.html" %}
 {% load static %}
 
 {% block content %}
@@ -7,7 +7,6 @@
   <h1 class="mb-4">Your cart</h1>
 
   {% if items %}
-  <!-- Cart lines -->
   <div class="row">
     <div class="col-lg-8">
 
@@ -16,29 +15,24 @@
       <div class="card mb-3" data-row="{{ p.id }}">
         <div class="card-body d-flex align-items-center gap-3">
 
-          <!-- Image -->
           <img
             src="{% if p.image %}{{ p.image.url }}{% elif p.image_url %}{{ p.image_url }}{% else %}{% static 'shop/img/placeholder.png' %}{% endif %}"
-            alt="{{ p.name }}" style="width:100px; height:100px; object-fit:cover; border-radius:12px;">
+            alt="{{ p.name }}" style="width:100px;height:100px;object-fit:cover;border-radius:12px;">
 
-          <!-- Title + category -->
           <div class="flex-grow-1">
             <div class="text-uppercase small text-muted">{{ p.category|default:"" }}</div>
             <div class="fw-semibold fs-5">{{ p.name }}</div>
 
-            <!-- Quantity controls -->
             <div class="d-flex align-items-center mt-2">
               <button class="btn btn-outline-light px-3" data-action="dec" data-id="{{ p.id }}">−</button>
               <input class="form-control mx-2 text-center" style="width:90px;" data-qty
-                     value="{{ item.qty }}" type="number" min="1"
-                     onfocus="this.blur()">  <!-- avoid manual change, use buttons -->
+                     value="{{ item.qty }}" type="number" min="1" onfocus="this.blur()">
               <button class="btn btn-outline-light px-3" data-action="inc" data-id="{{ p.id }}">+</button>
 
               <button class="btn btn-danger ms-3" data-action="remove" data-id="{{ p.id }}">Remove</button>
             </div>
           </div>
 
-          <!-- Line price -->
           <div class="text-end">
             <div class="fs-5">${{ item.line_total|floatformat:2 }}</div>
             <div class="text-muted small">{{ item.qty }} × ${{ p.price|floatformat:2 }}</div>
@@ -50,10 +44,9 @@
       {% endwith %}
       {% endfor %}
 
-      <a class="btn btn-outline-light" href="{% url 'shop:product_list' %}">Continue shopping</a>
+      <a class="btn btn-outline-light" href="/">Continue shopping</a>
     </div>
 
-    <!-- Totals -->
     <div class="col-lg-4">
       <div class="card">
         <div class="card-body">
@@ -76,7 +69,6 @@
             <span data-total>${{ order_total|floatformat:2 }}</span>
           </div>
 
-          <!-- Free shipping progress (optional) -->
           <div class="mt-3 small text-muted">
             Free shipping at <b>${{ free_shipping_threshold|floatformat:0 }}</b>.
             {% if free_shipping_remaining > 0 %}
@@ -86,7 +78,7 @@
             {% endif %}
           </div>
 
-          <a class="btn btn-success w-100 mt-3" href="{% url 'shop:checkout' %}">Checkout</a>
+          <a class="btn btn-success w-100 mt-3" href="/checkout/">Checkout</a>
         </div>
       </div>
     </div>
@@ -94,11 +86,10 @@
 
   {% else %}
     <div class="alert alert-info">Your cart is empty.</div>
-    <a class="btn btn-primary" href="{% url 'shop:product_list' %}">Shop now</a>
+    <a class="btn btn-primary" href="/">Shop now</a>
   {% endif %}
 </div>
 
-<!-- ===== AJAX cart updater (copy as-is) ===== -->
 <script>
 function getCsrf() {
   const m = document.cookie.match(/(^|;)\s*csrftoken=([^;]+)/);
@@ -111,7 +102,7 @@ async function updateLine(pid, action, qty=null) {
   fd.append("action", action);
   if (qty !== null) fd.append("qty", qty);
 
-  const res = await fetch("{% url 'shop:cart_update_api' %}", {
+  const res = await fetch("/cart/update/", {
     method: "POST",
     headers: {"X-CSRFToken": getCsrf()},
     body: fd
@@ -120,18 +111,13 @@ async function updateLine(pid, action, qty=null) {
   const data = await res.json();
   if (!data.ok) return;
 
-  // update totals
   document.querySelectorAll("[data-subtotal]").forEach(n => n.textContent = `$${data.subtotal}`);
   document.querySelectorAll("[data-total]").forEach(n => n.textContent = `$${data.total}`);
 
-  // update each visible line
   const visible = new Set(data.lines.map(l => String(l.id)));
   document.querySelectorAll("[data-row]").forEach(row => {
     const id = row.getAttribute("data-row");
-    if (!visible.has(id)) {
-      row.remove(); // removed from cart
-      return;
-    }
+    if (!visible.has(id)) row.remove();
   });
 
   data.lines.forEach(line => {
