@@ -5,4 +5,4 @@ gunicorn
 whitenoise
 dj-database-url
 Pillow
-psycopg2-binary==2.9.9
+psycopg[binary]==3.2.1
