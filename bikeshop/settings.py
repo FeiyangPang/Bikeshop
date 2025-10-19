@@ -1,8 +1,17 @@
+# bikeshop/settings.py
 from pathlib import Path
 import os
 import dj_database_url
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+
+# ---- Single disk location (Render) ----
+# We use one disk mounted at /opt/render/project/src/data.
+# If that path doesn't exist (local dev), we fall back to BASE_DIR / "data".
+DATA_DIR = Path(os.getenv("DATA_DIR", "/opt/render/project/src/data"))
+if not DATA_DIR.exists():
+    DATA_DIR = BASE_DIR / "data"
+DATA_DIR.mkdir(parents=True, exist_ok=True)  # make sure it exists at runtime
 
 # ---- Security / env ----
 SECRET_KEY = os.getenv("SECRET_KEY", "dev-only-change-me")
@@ -42,7 +51,7 @@ ROOT_URLCONF = "bikeshop.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],  # app templates only
+        "DIRS": [],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -57,10 +66,13 @@ TEMPLATES = [
 
 WSGI_APPLICATION = "bikeshop.wsgi.application"
 
-# ---- Database (Postgres via DATABASE_URL or SQLite fallback) ----
+# ---- Database ----
+# If DATABASE_URL is provided (e.g., Postgres), we use it.
+# Otherwise default to SQLite file on the single Render disk: DATA_DIR/db.sqlite3
+default_sqlite_url = f"sqlite:///{(DATA_DIR / 'db.sqlite3').as_posix()}"
 DATABASES = {
     "default": dj_database_url.config(
-        default=f"sqlite:///{BASE_DIR / 'db.sqlite3'}",
+        default=default_sqlite_url,
         conn_max_age=600,
     )
 }
@@ -83,8 +95,10 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_DIRS = [BASE_DIR / "shop" / "static"]
 STATICFILES_STORAGE = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
+# Put uploads on the same single disk, under a "media" subfolder.
 MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "media"   # Mount a persistent Disk to this path on Render
+MEDIA_ROOT = DATA_DIR / "media"
+MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
 
 # ---- Security behind proxy ----
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
