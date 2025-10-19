@@ -1,0 +1,189 @@
+{% extends 'base.html' %}
+{% load static %}
+{% block content %}
+
+<div class="row g-4">
+  <!-- Cart items -->
+  <div class="col-lg-8">
+    <h2 class="fancy-title mb-3">Your cart</h2>
+
+    {% if items %}
+      <div class="vstack gap-3">
+        {% for item in items %}
+        <div class="card p-2 reveal" id="cart-item-{{ item.product.id }}">
+          <div class="d-flex align-items-center gap-3">
+            <div style="width:110px;height:110px" class="d-flex align-items-center justify-content-center bg-transparent">
+              {% if item.product.image %}
+                <img src="{{ item.product.image.url }}" alt="{{ item.product.name }}" class="img-fluid" style="max-height:100%;object-fit:contain;">
+              {% elif item.product.image_url %}
+                <img src="{{ item.product.image_url }}" alt="{{ item.product.name }}" class="img-fluid" style="max-height:100%;object-fit:contain;">
+              {% else %}
+                <div class="text-muted">No image</div>
+              {% endif %}
+            </div>
+
+            <div class="flex-grow-1">
+              <div class="d-flex justify-content-between align-items-start">
+                <div>
+                  <div class="text-uppercase small" style="color:var(--muted)">{{ item.product.category }}</div>
+                  <h5 class="mb-1">{{ item.product.name }}</h5>
+                </div>
+                <strong class="fs-5">${{ item.product.price }}</strong>
+              </div>
+
+              <div class="d-flex align-items-center mt-2 gap-2">
+                <div class="input-group" style="width:140px;">
+                  <button class="btn btn-outline-light btn-sm js-qty-minus" data-id="{{ item.product.id }}" type="button">−</button>
+                  <input type="number" min="1" class="form-control form-control-sm text-center js-qty-input"
+                         value="{{ item.quantity }}" data-id="{{ item.product.id }}">
+                  <button class="btn btn-outline-light btn-sm js-qty-plus" data-id="{{ item.product.id }}" type="button">+</button>
+                </div>
+
+                <span class="ms-3 small text-muted">Subtotal:</span>
+                <strong id="subtotal-{{ item.product.id }}">${{ item.subtotal }}</strong>
+
+                <form class="ms-auto js-remove" method="post" action="{% url 'shop:remove_item' item.product.id %}">
+                  {% csrf_token %}
+                  <button class="btn btn-outline-danger btn-sm" type="submit">Remove</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="card p-5 text-center reveal">
+        <h4 class="mb-2">Your cart is empty</h4>
+        <p class="text-muted mb-3">Add some shiny bike parts and roll out.</p>
+        <a href="{% url 'shop:product_list' %}" class="btn btn-primary">Continue shopping</a>
+      </div>
+    {% endif %}
+  </div>
+
+  <!-- Summary -->
+  <div class="col-lg-4">
+    <div class="position-sticky" style="top:84px">
+      <div class="card p-3 reveal" id="summary-card">
+        <h5 class="mb-3">Order summary</h5>
+
+        <div class="d-flex justify-content-between">
+          <span>Subtotal</span>
+          <strong id="cart-total">${{ total }}</strong>
+        </div>
+
+        <div class="mt-3">
+          <div class="d-flex justify-content-between small">
+            <span>Free shipping at <strong>$200</strong></span>
+            <span id="fs-remaining" class="text-muted"></span>
+          </div>
+          <div class="progress mt-1" role="progressbar" style="height:10px;">
+            <div id="fs-bar" class="progress-bar" style="width:0%"></div>
+          </div>
+        </div>
+
+        <hr class="translucent my-3">
+
+        <div class="d-grid gap-2">
+          {% if items %}
+            <a class="btn btn-success" href="{% url 'shop:checkout' %}">Checkout</a>
+          {% else %}
+            <button class="btn btn-success" disabled>Checkout</button>
+          {% endif %}
+          <a class="btn btn-outline-light" href="{% url 'shop:product_list' %}">Continue shopping</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const THRESHOLD = 200;
+  const totalEl = document.getElementById('cart-total');
+  const barEl   = document.getElementById('fs-bar');
+  const remEl   = document.getElementById('fs-remaining');
+
+  function moneyToNumber(str){ return parseFloat(String(str).replace(/[^0-9.]/g,'')||'0'); }
+  function numberToMoney(n){ return '$' + (Math.round(n*100)/100).toFixed(2); }
+  function updateFreeShippingUI(total){
+    const t = typeof total==='number' ? total : moneyToNumber(total);
+    const pct = Math.min(100, Math.round((t/THRESHOLD)*100));
+    barEl.style.width = pct + '%';
+    if(t >= THRESHOLD){ remEl.textContent = 'You unlocked free shipping 🎉'; remEl.classList.remove('text-muted'); }
+    else { remEl.textContent = numberToMoney(THRESHOLD - t) + ' to go'; remEl.classList.add('text-muted'); }
+  }
+  updateFreeShippingUI(totalEl?.textContent || 0);
+
+  function postUpdateQty(id, qty){
+    const form = new FormData();
+    form.append('qty', qty);
+    return fetch(`/cart/update/${id}/`, { method: 'POST', headers: {'X-CSRFToken': window.__csrftoken, 'X-Requested-With':'XMLHttpRequest'}, body: form }).then(r=>r.json());
+  }
+  function postRemove(id, formEl){
+    return fetch(formEl.action, { method: 'POST', headers: {'X-CSRFToken': window.__csrftoken, 'X-Requested-With':'XMLHttpRequest'} }).then(r=>r.json());
+  }
+
+  document.querySelectorAll('.js-qty-plus').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.dataset.id;
+      const input = document.querySelector(`.js-qty-input[data-id="${id}"]`);
+      const next = Math.max(1, parseInt(input.value||'1',10)+1);
+      postUpdateQty(id, next).then(data=>{
+        if(!data?.ok) return;
+        input.value = next;
+        document.getElementById(`subtotal-${id}`).textContent = '$'+data.item_subtotal;
+        totalEl.textContent = '$'+data.total;
+        window.__updateCartBadge?.(data.count);
+        updateFreeShippingUI(data.total);
+      });
+    });
+  });
+  document.querySelectorAll('.js-qty-minus').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const id = btn.dataset.id;
+      const input = document.querySelector(`.js-qty-input[data-id="${id}"]`);
+      const next = Math.max(1, parseInt(input.value||'1',10)-1);
+      postUpdateQty(id, next).then(data=>{
+        if(!data?.ok) return;
+        input.value = next;
+        document.getElementById(`subtotal-${id}`).textContent = '$'+data.item_subtotal;
+        totalEl.textContent = '$'+data.total;
+        window.__updateCartBadge?.(data.count);
+        updateFreeShippingUI(data.total);
+      });
+    });
+  });
+  document.querySelectorAll('.js-qty-input').forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      const id = inp.dataset.id;
+      const val = Math.max(1, parseInt(inp.value||'1',10));
+      inp.value = val;
+      postUpdateQty(id, val).then(data=>{
+        if(!data?.ok) return;
+        document.getElementById(`subtotal-${id}`).textContent = '$'+data.item_subtotal;
+        totalEl.textContent = '$'+data.total;
+        window.__updateCartBadge?.(data.count);
+        updateFreeShippingUI(data.total);
+      });
+    });
+  });
+  document.querySelectorAll('form.js-remove').forEach(form=>{
+    form.addEventListener('submit', (e)=>{
+      e.preventDefault();
+      const id = form.action.split('/').filter(Boolean).pop();
+      postRemove(id, form).then(data=>{
+        if(!data?.ok) return;
+        const row = document.getElementById(`cart-item-${id}`);
+        if(row){ row.style.opacity=.2; row.style.transform='scale(.98)'; setTimeout(()=>row.remove(),180); }
+        totalEl.textContent = '$'+data.total;
+        window.__updateCartBadge?.(data.count);
+        updateFreeShippingUI(data.total);
+        window.__showToast?.('Removed from cart');
+        if(data.count === 0) location.reload();
+      });
+    });
+  });
+})();
+</script>
+{% endblock %}
