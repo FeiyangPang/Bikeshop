@@ -1,41 +1,35 @@
 {% extends 'base.html' %}
-{% load static %}
 {% block content %}
-<div class="row reveal">
-  <div class="col-lg-3 mb-4">
-    <div class="list-group">
-      <a href="{% url 'shop:product_list' %}" class="list-group-item list-group-item-action {% if not request.GET.cat %}active{% endif %}">All parts</a>
-      {% if categories %}
+<div class="row g-4">
+  <div class="col-lg-3">
+    <div class="card p-3">
+      <h5 class="mb-3">Categories</h5>
+      <ul class="list-unstyled vstack gap-2">
+        <li><a class="link-light" href="{% url 'shop:product_list' %}">All parts</a></li>
         {% for c in categories %}
-        <a href="?cat={{ c|urlencode }}" class="list-group-item list-group-item-action {% if request.GET.cat == c %}active{% endif %}">{{ c }}</a>
+        <li><a class="link-light{% if request.GET.cat == c %} fw-bold{% endif %}" href="?cat={{ c|urlencode }}">{{ c }}</a></li>
         {% endfor %}
-      {% endif %}
+      </ul>
     </div>
   </div>
 
   <div class="col-lg-9">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <h2 class="fancy-title mb-0">{% if request.GET.cat %}{{ request.GET.cat }}{% else %}Our top sellers{% endif %}</h2>
-      <span class="text-muted">{{ products.paginator.count }} items</span>
-    </div>
-
-    <div class="row g-3">
+    <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3">
       {% for p in products %}
-      <div class="col-sm-6 col-md-4 reveal">
-        <div class="card h-100 shadow-sm">
-          {% if p.image %}
-            <img src="{{ p.image.url }}" class="card-img-top p-3" alt="{{ p.name }}">
-          {% elif p.image_url %}
-            <img src="{{ p.image_url }}" class="card-img-top p-3" alt="{{ p.name }}">
-          {% else %}
-            <div class="d-flex align-items-center justify-content-center bg-light text-dark" style="height:200px;">No image</div>
+      <div class="col" id="prod-card-{{ p.id }}">
+        <div class="card h-100 p-2 reveal position-relative">
+          {% if request.user.is_staff %}
+          <button class="btn btn-sm btn-outline-danger position-absolute" style="top:.5rem;right:.5rem" data-del-id="{{ p.id }}" title="Delete">🗑</button>
           {% endif %}
-          <div class="card-body d-flex flex-column">
-            <small class="text-uppercase" style="color:var(--muted)">{{ p.category }}</small>
-            <h5 class="card-title mt-1">{{ p.name }}</h5>
-            <div class="mt-auto d-flex justify-content-between align-items-center">
+          <div class="d-flex align-items-center justify-content-center" style="height:180px;">
+            {% if p.image %}<img src="{{ p.image.url }}" class="img-fluid" style="max-height:100%;object-fit:contain;">{% elif p.image_url %}<img src="{{ p.image_url }}" class="img-fluid" style="max-height:100%;object-fit:contain;">{% else %}<div class="text-muted">No image</div>{% endif %}
+          </div>
+          <div class="mt-2">
+            <div class="small text-muted">{{ p.category }}{% if p.brand %} • {{ p.brand.name }}{% endif %}</div>
+            <h6 class="mb-1">{{ p.name }}</h6>
+            <div class="d-flex justify-content-between align-items-center">
               <strong>${{ p.price }}</strong>
-              <form class="add-to-cart" method="post" action="{% url 'shop:add_item' p.id %}">
+              <form class="d-inline js-add" method="post" action="{% url 'shop:add_item' p.id %}">
                 {% csrf_token %}
                 <input type="hidden" name="qty" value="1">
                 <button class="btn btn-primary btn-sm" type="submit">Add to cart</button>
@@ -45,53 +39,43 @@
         </div>
       </div>
       {% empty %}
-      <p>No products yet.</p>
+      <div class="col"><div class="card p-5 text-center">No products yet.</div></div>
       {% endfor %}
     </div>
 
-    <nav class="mt-4 reveal">
-      <ul class="pagination">
+    <div class="mt-4">
+      <nav><ul class="pagination">
         {% if products.has_previous %}
-          <li class="page-item"><a class="page-link" href="?page={{ products.previous_page_number }}{% if request.GET.cat %}&cat={{ request.GET.cat|urlencode }}{% endif %}{% if request.GET.q %}&q={{ request.GET.q|urlencode }}{% endif %}">Previous</a></li>
+        <li class="page-item"><a class="page-link" href="?{% if request.GET.cat %}cat={{request.GET.cat|urlencode}}&{% endif %}page={{ products.previous_page_number }}">Previous</a></li>
         {% endif %}
-        <li class="page-item disabled"><span class="page-link">Page {{ products.number }} / {{ products.paginator.num_pages }}</span></li>
+        <li class="page-item disabled"><span class="page-link">Page {{ products.number }} of {{ products.paginator.num_pages }}</span></li>
         {% if products.has_next %}
-          <li class="page-item"><a class="page-link" href="?page={{ products.next_page_number }}{% if request.GET.cat %}&cat={{ request.GET.cat|urlencode }}{% endif %}{% if request.GET.q %}&q={{ request.GET.q|urlencode }}{% endif %}">Next</a></li>
+        <li class="page-item"><a class="page-link" href="?{% if request.GET.cat %}cat={{request.GET.cat|urlencode}}&{% endif %}page={{ products.next_page_number }}">Next</a></li>
         {% endif %}
-      </ul>
-    </nav>
+      </ul></nav>
+    </div>
   </div>
 </div>
 
 <script>
-  // AJAX add-to-cart with toast + badge
-  document.querySelectorAll('form.add-to-cart').forEach(function(form){
-    form.addEventListener('submit', function(e){
+(function(){
+  document.querySelectorAll('form.js-add').forEach(f=>{
+    f.addEventListener('submit', e=>{
       e.preventDefault();
-      const btn=form.querySelector('button[type="submit"]'); const txt=btn.textContent;
-      btn.disabled=true; btn.textContent='Adding…';
-
-      fetch(form.action, {
-        method:'POST',
-        headers:{'X-CSRFToken':window.__csrftoken,'X-Requested-With':'XMLHttpRequest'},
-        body:new FormData(form)
-      })
-      .then(r=>r.json())
-      .then(data=>{
-        if(data && data.ok){
-          window.__updateCartBadge?.(data.count);
-          window.__showToast?.('Added to cart');
-          btn.textContent='Added ✓';
-        } else {
-          btn.textContent='Try again';
-        }
-        setTimeout(()=>{btn.textContent=txt; btn.disabled=false;},900);
-      })
-      .catch(()=>{
-        btn.textContent='Error';
-        setTimeout(()=>{btn.textContent=txt; btn.disabled=false;},1200);
+      fetch(f.action,{method:'POST',body:new FormData(f),headers:{'X-CSRFToken':window.__csrftoken,'X-Requested-With':'XMLHttpRequest'}})
+      .then(r=>r.json()).then(d=>{ if(d?.ok){ window.__updateCartBadge?.(d.count); window.__showToast?.('Added to cart'); }});
+    });
+  });
+  document.querySelectorAll('[data-del-id]').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      if(!confirm('Delete this product?')) return;
+      const id = btn.getAttribute('data-del-id');
+      fetch(`{% url 'shop:product_delete' 0 %}`.replace('0/', id+'/'),{method:'POST',headers:{'X-CSRFToken':window.__csrftoken,'X-Requested-With':'XMLHttpRequest'}})
+      .then(r=>r.json()).then(d=>{
+        if(d?.ok){ const card=document.getElementById('prod-card-'+id); if(card){ card.remove(); } window.__showToast?.('Product deleted'); }
       });
     });
   });
+})();
 </script>
 {% endblock %}
