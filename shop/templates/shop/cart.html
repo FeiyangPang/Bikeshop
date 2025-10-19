@@ -1,189 +1,158 @@
-{% extends 'base.html' %}
+{% extends "shop/base.html" %}
 {% load static %}
+
 {% block content %}
+<div class="container my-5">
 
-<div class="row g-4">
-  <!-- Cart items -->
-  <div class="col-lg-8">
-    <h2 class="fancy-title mb-3">Your cart</h2>
+  <h1 class="mb-4">Your cart</h1>
 
-    {% if items %}
-      <div class="vstack gap-3">
-        {% for item in items %}
-        <div class="card p-2 reveal" id="cart-item-{{ item.product.id }}">
-          <div class="d-flex align-items-center gap-3">
-            <div style="width:110px;height:110px" class="d-flex align-items-center justify-content-center bg-transparent">
-              {% if item.product.image %}
-                <img src="{{ item.product.image.url }}" alt="{{ item.product.name }}" class="img-fluid" style="max-height:100%;object-fit:contain;">
-              {% elif item.product.image_url %}
-                <img src="{{ item.product.image_url }}" alt="{{ item.product.name }}" class="img-fluid" style="max-height:100%;object-fit:contain;">
-              {% else %}
-                <div class="text-muted">No image</div>
-              {% endif %}
-            </div>
+  {% if items %}
+  <!-- Cart lines -->
+  <div class="row">
+    <div class="col-lg-8">
 
-            <div class="flex-grow-1">
-              <div class="d-flex justify-content-between align-items-start">
-                <div>
-                  <div class="text-uppercase small" style="color:var(--muted)">{{ item.product.category }}</div>
-                  <h5 class="mb-1">{{ item.product.name }}</h5>
-                </div>
-                <strong class="fs-5">${{ item.product.price }}</strong>
-              </div>
+      {% for item in items %}
+      {% with p=item.product %}
+      <div class="card mb-3" data-row="{{ p.id }}">
+        <div class="card-body d-flex align-items-center gap-3">
 
-              <div class="d-flex align-items-center mt-2 gap-2">
-                <div class="input-group" style="width:140px;">
-                  <button class="btn btn-outline-light btn-sm js-qty-minus" data-id="{{ item.product.id }}" type="button">−</button>
-                  <input type="number" min="1" class="form-control form-control-sm text-center js-qty-input"
-                         value="{{ item.quantity }}" data-id="{{ item.product.id }}">
-                  <button class="btn btn-outline-light btn-sm js-qty-plus" data-id="{{ item.product.id }}" type="button">+</button>
-                </div>
+          <!-- Image -->
+          <img
+            src="{% if p.image %}{{ p.image.url }}{% elif p.image_url %}{{ p.image_url }}{% else %}{% static 'shop/img/placeholder.png' %}{% endif %}"
+            alt="{{ p.name }}" style="width:100px; height:100px; object-fit:cover; border-radius:12px;">
 
-                <span class="ms-3 small text-muted">Subtotal:</span>
-                <strong id="subtotal-{{ item.product.id }}">${{ item.subtotal }}</strong>
+          <!-- Title + category -->
+          <div class="flex-grow-1">
+            <div class="text-uppercase small text-muted">{{ p.category|default:"" }}</div>
+            <div class="fw-semibold fs-5">{{ p.name }}</div>
 
-                <form class="ms-auto js-remove" method="post" action="{% url 'shop:remove_item' item.product.id %}">
-                  {% csrf_token %}
-                  <button class="btn btn-outline-danger btn-sm" type="submit">Remove</button>
-                </form>
-              </div>
+            <!-- Quantity controls -->
+            <div class="d-flex align-items-center mt-2">
+              <button class="btn btn-outline-light px-3" data-action="dec" data-id="{{ p.id }}">−</button>
+              <input class="form-control mx-2 text-center" style="width:90px;" data-qty
+                     value="{{ item.qty }}" type="number" min="1"
+                     onfocus="this.blur()">  <!-- avoid manual change, use buttons -->
+              <button class="btn btn-outline-light px-3" data-action="inc" data-id="{{ p.id }}">+</button>
+
+              <button class="btn btn-danger ms-3" data-action="remove" data-id="{{ p.id }}">Remove</button>
             </div>
           </div>
-        </div>
-        {% endfor %}
-      </div>
-    {% else %}
-      <div class="card p-5 text-center reveal">
-        <h4 class="mb-2">Your cart is empty</h4>
-        <p class="text-muted mb-3">Add some shiny bike parts and roll out.</p>
-        <a href="{% url 'shop:product_list' %}" class="btn btn-primary">Continue shopping</a>
-      </div>
-    {% endif %}
-  </div>
 
-  <!-- Summary -->
-  <div class="col-lg-4">
-    <div class="position-sticky" style="top:84px">
-      <div class="card p-3 reveal" id="summary-card">
-        <h5 class="mb-3">Order summary</h5>
-
-        <div class="d-flex justify-content-between">
-          <span>Subtotal</span>
-          <strong id="cart-total">${{ total }}</strong>
-        </div>
-
-        <div class="mt-3">
-          <div class="d-flex justify-content-between small">
-            <span>Free shipping at <strong>$200</strong></span>
-            <span id="fs-remaining" class="text-muted"></span>
+          <!-- Line price -->
+          <div class="text-end">
+            <div class="fs-5">${{ item.line_total|floatformat:2 }}</div>
+            <div class="text-muted small">{{ item.qty }} × ${{ p.price|floatformat:2 }}</div>
+            <div class="mt-2"><span class="badge bg-secondary" data-line-total>${{ item.line_total|floatformat:2 }}</span></div>
           </div>
-          <div class="progress mt-1" role="progressbar" style="height:10px;">
-            <div id="fs-bar" class="progress-bar" style="width:0%"></div>
-          </div>
+
         </div>
+      </div>
+      {% endwith %}
+      {% endfor %}
 
-        <hr class="translucent my-3">
+      <a class="btn btn-outline-light" href="{% url 'shop:product_list' %}">Continue shopping</a>
+    </div>
 
-        <div class="d-grid gap-2">
-          {% if items %}
-            <a class="btn btn-success" href="{% url 'shop:checkout' %}">Checkout</a>
-          {% else %}
-            <button class="btn btn-success" disabled>Checkout</button>
-          {% endif %}
-          <a class="btn btn-outline-light" href="{% url 'shop:product_list' %}">Continue shopping</a>
+    <!-- Totals -->
+    <div class="col-lg-4">
+      <div class="card">
+        <div class="card-body">
+          <h5 class="card-title">Order summary</h5>
+
+          <div class="d-flex justify-content-between mt-3">
+            <span>Subtotal</span>
+            <span data-subtotal>${{ subtotal|floatformat:2 }}</span>
+          </div>
+
+          <div class="d-flex justify-content-between mt-2">
+            <span>Shipping</span>
+            <span>${{ shipping|floatformat:2 }}</span>
+          </div>
+
+          <hr class="my-3">
+
+          <div class="d-flex justify-content-between fs-5 fw-semibold">
+            <span>Total</span>
+            <span data-total>${{ order_total|floatformat:2 }}</span>
+          </div>
+
+          <!-- Free shipping progress (optional) -->
+          <div class="mt-3 small text-muted">
+            Free shipping at <b>${{ free_shipping_threshold|floatformat:0 }}</b>.
+            {% if free_shipping_remaining > 0 %}
+              <br>Only ${{ free_shipping_remaining|floatformat:2 }} to go!
+            {% else %}
+              <br><span class="text-success">You’ve got free shipping 🎉</span>
+            {% endif %}
+          </div>
+
+          <a class="btn btn-success w-100 mt-3" href="{% url 'shop:checkout' %}">Checkout</a>
         </div>
       </div>
     </div>
   </div>
+
+  {% else %}
+    <div class="alert alert-info">Your cart is empty.</div>
+    <a class="btn btn-primary" href="{% url 'shop:product_list' %}">Shop now</a>
+  {% endif %}
 </div>
 
+<!-- ===== AJAX cart updater (copy as-is) ===== -->
 <script>
-(function(){
-  const THRESHOLD = 200;
-  const totalEl = document.getElementById('cart-total');
-  const barEl   = document.getElementById('fs-bar');
-  const remEl   = document.getElementById('fs-remaining');
+function getCsrf() {
+  const m = document.cookie.match(/(^|;)\s*csrftoken=([^;]+)/);
+  return m ? decodeURIComponent(m[2]) : "";
+}
 
-  function moneyToNumber(str){ return parseFloat(String(str).replace(/[^0-9.]/g,'')||'0'); }
-  function numberToMoney(n){ return '$' + (Math.round(n*100)/100).toFixed(2); }
-  function updateFreeShippingUI(total){
-    const t = typeof total==='number' ? total : moneyToNumber(total);
-    const pct = Math.min(100, Math.round((t/THRESHOLD)*100));
-    barEl.style.width = pct + '%';
-    if(t >= THRESHOLD){ remEl.textContent = 'You unlocked free shipping 🎉'; remEl.classList.remove('text-muted'); }
-    else { remEl.textContent = numberToMoney(THRESHOLD - t) + ' to go'; remEl.classList.add('text-muted'); }
-  }
-  updateFreeShippingUI(totalEl?.textContent || 0);
+async function updateLine(pid, action, qty=null) {
+  const fd = new FormData();
+  fd.append("product_id", pid);
+  fd.append("action", action);
+  if (qty !== null) fd.append("qty", qty);
 
-  function postUpdateQty(id, qty){
-    const form = new FormData();
-    form.append('qty', qty);
-    return fetch(`/cart/update/${id}/`, { method: 'POST', headers: {'X-CSRFToken': window.__csrftoken, 'X-Requested-With':'XMLHttpRequest'}, body: form }).then(r=>r.json());
-  }
-  function postRemove(id, formEl){
-    return fetch(formEl.action, { method: 'POST', headers: {'X-CSRFToken': window.__csrftoken, 'X-Requested-With':'XMLHttpRequest'} }).then(r=>r.json());
-  }
+  const res = await fetch("{% url 'shop:cart_update_api' %}", {
+    method: "POST",
+    headers: {"X-CSRFToken": getCsrf()},
+    body: fd
+  });
+  if (!res.ok) return;
+  const data = await res.json();
+  if (!data.ok) return;
 
-  document.querySelectorAll('.js-qty-plus').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const id = btn.dataset.id;
-      const input = document.querySelector(`.js-qty-input[data-id="${id}"]`);
-      const next = Math.max(1, parseInt(input.value||'1',10)+1);
-      postUpdateQty(id, next).then(data=>{
-        if(!data?.ok) return;
-        input.value = next;
-        document.getElementById(`subtotal-${id}`).textContent = '$'+data.item_subtotal;
-        totalEl.textContent = '$'+data.total;
-        window.__updateCartBadge?.(data.count);
-        updateFreeShippingUI(data.total);
-      });
-    });
+  // update totals
+  document.querySelectorAll("[data-subtotal]").forEach(n => n.textContent = `$${data.subtotal}`);
+  document.querySelectorAll("[data-total]").forEach(n => n.textContent = `$${data.total}`);
+
+  // update each visible line
+  const visible = new Set(data.lines.map(l => String(l.id)));
+  document.querySelectorAll("[data-row]").forEach(row => {
+    const id = row.getAttribute("data-row");
+    if (!visible.has(id)) {
+      row.remove(); // removed from cart
+      return;
+    }
   });
-  document.querySelectorAll('.js-qty-minus').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      const id = btn.dataset.id;
-      const input = document.querySelector(`.js-qty-input[data-id="${id}"]`);
-      const next = Math.max(1, parseInt(input.value||'1',10)-1);
-      postUpdateQty(id, next).then(data=>{
-        if(!data?.ok) return;
-        input.value = next;
-        document.getElementById(`subtotal-${id}`).textContent = '$'+data.item_subtotal;
-        totalEl.textContent = '$'+data.total;
-        window.__updateCartBadge?.(data.count);
-        updateFreeShippingUI(data.total);
-      });
-    });
+
+  data.lines.forEach(line => {
+    const row = document.querySelector(`[data-row='${line.id}']`);
+    if (!row) return;
+    const qty = row.querySelector("[data-qty]");
+    const lt  = row.querySelector("[data-line-total]");
+    if (qty) qty.value = line.qty;
+    if (lt)  lt.textContent = `$${line.line_total}`;
   });
-  document.querySelectorAll('.js-qty-input').forEach(inp=>{
-    inp.addEventListener('change', ()=>{
-      const id = inp.dataset.id;
-      const val = Math.max(1, parseInt(inp.value||'1',10));
-      inp.value = val;
-      postUpdateQty(id, val).then(data=>{
-        if(!data?.ok) return;
-        document.getElementById(`subtotal-${id}`).textContent = '$'+data.item_subtotal;
-        totalEl.textContent = '$'+data.total;
-        window.__updateCartBadge?.(data.count);
-        updateFreeShippingUI(data.total);
-      });
-    });
-  });
-  document.querySelectorAll('form.js-remove').forEach(form=>{
-    form.addEventListener('submit', (e)=>{
-      e.preventDefault();
-      const id = form.action.split('/').filter(Boolean).pop();
-      postRemove(id, form).then(data=>{
-        if(!data?.ok) return;
-        const row = document.getElementById(`cart-item-${id}`);
-        if(row){ row.style.opacity=.2; row.style.transform='scale(.98)'; setTimeout(()=>row.remove(),180); }
-        totalEl.textContent = '$'+data.total;
-        window.__updateCartBadge?.(data.count);
-        updateFreeShippingUI(data.total);
-        window.__showToast?.('Removed from cart');
-        if(data.count === 0) location.reload();
-      });
-    });
-  });
-})();
+}
+
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-action]");
+  if (!btn) return;
+  const pid = btn.getAttribute("data-id");
+  const action = btn.getAttribute("data-action");
+  if (["inc","dec","remove"].includes(action)) {
+    e.preventDefault();
+    updateLine(pid, action);
+  }
+});
 </script>
 {% endblock %}
