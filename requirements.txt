@@ -1,6 +1,4 @@
-Django==5.0.6
-requests==2.31.0
-beautifulsoup4==4.12.3
+Django
 gunicorn
 whitenoise
 dj-database-url
