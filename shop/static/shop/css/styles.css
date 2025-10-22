@@ -141,3 +141,51 @@ hr{border-color:rgba(255,255,255,.08);}
 @keyframes auroraShift{0%{transform:translate3d(-4%,2%,0)}100%{transform:translate3d(6%,-4%,0)}}
 @keyframes gridDrift{0%{transform:translateY(0)}100%{transform:translateY(-120px)}}
 @keyframes particleFloat{0%,100%{transform:translate3d(-20px,-10px,0);opacity:.6}50%{transform:translate3d(20px,18px,0);opacity:1}}
+
+/* === High-contrast text overrides (append to end) === */
+:root{
+  --text:#ffffff;              /* main text */
+  --muted:#e6eeff;             /* secondary text */
+  --accent:#a8c8ff;            /* links */
+}
+
+/* Make default text bright everywhere */
+html, body { color: var(--text) !important; }
+
+/* Headings & section titles */
+h1,h2,h3,h4,h5,h6,
+.h1,.h2,.h3,.h4,.h5,.h6,
+.fancy-title { color:#fff !important; }
+
+/* Card / panel content */
+.card, .list-group-item, .dropdown-menu, .modal-content {
+  color:#fff !important;
+}
+
+/* Standard copy & muted text */
+p, li, .card-text, .form-text, .text-muted, small, .small {
+  color: var(--muted) !important;
+}
+
+/* Links (navbar + anywhere) */
+a, .nav-link, .navbar-brand, .breadcrumb-item a {
+  color: var(--accent) !important;
+  text-decoration: none;
+}
+a:hover, .nav-link:hover, .breadcrumb-item a:hover {
+  color:#fff !important;
+}
+
+/* Category sidebar items */
+.categories-panel h5,
+.categories-item .category-link { color:#fff !important; }
+
+/* Forms on dark background */
+.form-label { color: var(--muted) !important; }
+.form-control, .form-select { color:#fff !important; }
+.form-control::placeholder { color:#d6e2ff !important; }
+
+/* Table text */
+.table, .table-dark, .table-dark td, .table-dark th {
+  color:#fff !important;
+}
