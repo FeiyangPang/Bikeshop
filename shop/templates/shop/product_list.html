@@ -2,12 +2,16 @@
 {% block content %}
 <div class="row g-4">
   <div class="col-lg-3">
-    <div class="card glass-card p-3">
+    <div class="card glass-card p-3 categories-panel reveal">
       <h5 class="mb-3">Categories</h5>
-      <ul class="list-unstyled vstack gap-2">
-        <li><a class="link-light" href="{% url 'shop:product_list' %}">All parts</a></li>
+      <ul class="list-unstyled vstack gap-2 categories-list">
+        <li class="categories-item{% if not request.GET.cat %} is-active{% endif %}" style="--i:0">
+          <a class="category-link{% if not request.GET.cat %} is-active{% endif %}" href="{% url 'shop:product_list' %}">All parts</a>
+        </li>
         {% for c in categories %}
-        <li><a class="link-light{% if request.GET.cat == c %} fw-bold{% endif %}" href="?cat={{ c|urlencode }}">{{ c }}</a></li>
+        <li class="categories-item{% if request.GET.cat == c %} is-active{% endif %}" style="--i:{{ forloop.counter }}">
+          <a class="category-link{% if request.GET.cat == c %} is-active{% endif %}" href="?cat={{ c|urlencode }}">{{ c }}</a>
+        </li>
         {% endfor %}
       </ul>
     </div>
