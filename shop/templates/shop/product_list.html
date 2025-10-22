@@ -2,7 +2,7 @@
 {% block content %}
 <div class="row g-4">
   <div class="col-lg-3">
-    <div class="card p-3">
+    <div class="card glass-card p-3">
       <h5 class="mb-3">Categories</h5>
       <ul class="list-unstyled vstack gap-2">
         <li><a class="link-light" href="{% url 'shop:product_list' %}">All parts</a></li>
@@ -17,16 +17,22 @@
     <div class="row row-cols-1 row-cols-sm-2 row-cols-md-3 g-3">
       {% for p in products %}
       <div class="col" id="prod-card-{{ p.id }}">
-        <div class="card h-100 p-2 reveal position-relative">
+        <div class="card h-100 reveal position-relative product-card">
           {% if request.user.is_staff %}
-          <button class="btn btn-sm btn-outline-danger position-absolute" style="top:.5rem;right:.5rem" data-del-id="{{ p.id }}" title="Delete">🗑</button>
+          <button class="btn btn-sm btn-outline-danger position-absolute" style="top:.75rem;right:.75rem" data-del-id="{{ p.id }}" title="Delete">🗑</button>
           {% endif %}
-          <div class="d-flex align-items-center justify-content-center" style="height:180px;">
-            {% if p.image %}<img src="{{ p.image.url }}" class="img-fluid" style="max-height:100%;object-fit:contain;">{% elif p.image_url %}<img src="{{ p.image_url }}" class="img-fluid" style="max-height:100%;object-fit:contain;">{% else %}<div class="text-muted">No image</div>{% endif %}
+          <div class="product-media" style="height:200px;">
+            {% if p.image %}
+              <img src="{{ p.image.url }}" loading="lazy" class="img-fluid js-fade-image" alt="{{ p.name }}">
+            {% elif p.image_url %}
+              <img src="{{ p.image_url }}" loading="lazy" class="img-fluid js-fade-image" alt="{{ p.name }}">
+            {% else %}
+              <div class="text-muted">No image</div>
+            {% endif %}
           </div>
-          <div class="mt-2">
-            <div class="small text-muted">{{ p.category }}{% if p.brand %} • {{ p.brand.name }}{% endif %}</div>
-            <h6 class="mb-1">{{ p.name }}</h6>
+          <div class="card-body pb-4">
+            <div class="tagline mb-2">{{ p.category }}{% if p.brand %} • {{ p.brand.name }}{% endif %}</div>
+            <h6 class="mb-2">{{ p.name }}</h6>
             <div class="d-flex justify-content-between align-items-center">
               <strong>${{ p.price }}</strong>
               <form class="d-inline js-add" method="post" action="{% url 'shop:add_item' p.id %}">
@@ -39,7 +45,7 @@
         </div>
       </div>
       {% empty %}
-      <div class="col"><div class="card p-5 text-center">No products yet.</div></div>
+      <div class="col"><div class="card glass-card p-5 text-center">No products yet.</div></div>
       {% endfor %}
     </div>
 
@@ -59,6 +65,12 @@
 
 <script>
 (function(){
+  document.querySelectorAll('.js-fade-image').forEach(img=>{
+    const markLoaded=()=>img.classList.add('loaded');
+    if(img.complete){markLoaded();}
+    else{img.addEventListener('load',markLoaded,{once:true});img.addEventListener('error',markLoaded,{once:true});}
+  });
+
   document.querySelectorAll('form.js-add').forEach(f=>{
     f.addEventListener('submit', e=>{
       e.preventDefault();

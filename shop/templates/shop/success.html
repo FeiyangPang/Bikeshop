@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="card p-5 text-center">
+<div class="card glass-card p-5 text-center">
   <h2 class="mb-3">Payment received ✅</h2>
   {% if order %}
     <p class="text-muted mb-4">Thank you{% if order.full_name %}, {{ order.full_name }}{% endif %}! We’ll ship to <strong>{{ order.address }}</strong>. We’ll contact you at {{ order.phone }}{% if order.email %} / {{ order.email }}{% endif %} if needed.</p>
