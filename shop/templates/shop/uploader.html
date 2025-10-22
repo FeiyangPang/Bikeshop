@@ -3,7 +3,7 @@
 <h2 class="fancy-title mb-3">Drag & Drop Product Uploader</h2>
 {{ categories|json_script:"cats-data" }}
 
-<div class="card p-3 mb-3">
+<div class="card glass-card p-4 mb-3">
   <div id="dropzone" class="dropzone">
     <div class="dz-instructions">
       <div>📦 Drag & drop images here</div>
@@ -12,8 +12,7 @@
     <input id="file-input" type="file" accept="image/*" multiple hidden>
   </div>
 </div>
-
-<div class="card p-3">
+<div class="card glass-card p-4">
   <div class="d-flex justify-content-between align-items-center mb-2">
     <h5 class="mb-0">Staged products</h5>
     <div class="d-flex gap-2">
@@ -39,71 +38,3 @@
 </div>
 
 <script>
-(function(){
-  const CATEGORIES = JSON.parse(document.getElementById('cats-data').textContent);
-  const dropzone=document.getElementById('dropzone'), fileInput=document.getElementById('file-input'),
-        rows=document.getElementById('rows'), btnUpload=document.getElementById('btn-upload'),
-        btnClear=document.getElementById('btn-clear'), afterBox=document.getElementById('post-actions');
-
-  function fileBaseName(f){return f.name.replace(/\.[^.]+$/,'').replace(/[_-]+/g,' ').replace(/\s+/g,' ').trim();}
-
-  function makeRow(file){
-    const url=URL.createObjectURL(file);
-    const tr=document.createElement('tr');
-    tr.innerHTML=`
-      <td><img src="${url}" style="width:70px;height:70px;object-fit:contain;border-radius:8px"/></td>
-      <td><input class="form-control form-control-sm" value="${fileBaseName(file)}"></td>
-      <td><input class="form-control form-control-sm" placeholder="Brand"></td>
-      <td><select class="form-select form-select-sm">${CATEGORIES.map(c=>`<option value="${c.replace(/"/g,'&quot;')}">${c}</option>`).join('')}</select></td>
-      <td style="width:110px"><input type="number" min="0" step="0.01" class="form-control form-control-sm" value="49.99"></td>
-      <td class="status small">Ready</td>
-      <td class="text-end">
-        <button class="btn btn-outline-danger btn-sm btn-remove" type="button">Remove</button>
-        <button class="btn btn-outline-warning btn-sm btn-cancel d-none" type="button" title="Delete created product">Cancel</button>
-      </td>`;
-    tr._file=file;
-    tr.querySelector('.btn-remove').addEventListener('click',()=>{tr.remove();updateButtons();});
-    tr.querySelector('.btn-cancel').addEventListener('click',()=>cancelCreated(tr));
-    rows.prepend(tr);
-  }
-
-  function updateButtons(){btnUpload.disabled = rows.querySelectorAll('tr').length===0;}
-  function highlight(on){dropzone.classList.toggle('hover',!!on);}
-  ['dragenter','dragover'].forEach(e=>dropzone.addEventListener(e,ev=>{ev.preventDefault();ev.stopPropagation();highlight(true);} ));
-  ['dragleave','drop'].forEach(e=>dropzone.addEventListener(e,ev=>{ev.preventDefault();ev.stopPropagation();highlight(false);} ));
-  dropzone.addEventListener('drop',ev=>{[...(ev.dataTransfer?.files||[])].filter(f=>f.type.startsWith('image/')).forEach(makeRow);updateButtons();});
-  dropzone.addEventListener('click',()=>fileInput.click());
-  fileInput.addEventListener('change',()=>{[...fileInput.files].forEach(makeRow);fileInput.value='';updateButtons();});
-
-  btnUpload.addEventListener('click', async ()=>{
-    btnUpload.disabled=true; afterBox.classList.add('d-none');
-    const trs=[...rows.querySelectorAll('tr')]; let any=false;
-    for(const tr of trs){
-      const [nameEl, brandEl, catEl, priceEl]=tr.querySelectorAll('input, select');
-      const status=tr.querySelector('.status'); status.textContent='Uploading…';
-      const fd=new FormData(); fd.append('name',nameEl.value.trim()||'New Product'); fd.append('brand',brandEl.value.trim()); fd.append('category',catEl.value); fd.append('price',priceEl.value||'0'); fd.append('image',tr._file);
-      try{
-        const resp=await fetch("{% url 'shop:uploader_api_create' %}",{method:'POST',headers:{'X-CSRFToken':window.__csrftoken,'X-Requested-With':'XMLHttpRequest'},body:fd});
-        if(resp.redirected){status.textContent='Login required';status.classList.add('text-warning');btnUpload.disabled=false;return;}
-        const ct=resp.headers.get('content-type')||''; let data=ct.includes('application/json')?await resp.json():{error:'server',message:await resp.text()};
-        if(resp.ok && data.ok){status.textContent='Created ✓';status.classList.add('text-success');tr._createdId=data.id;tr.querySelector('.btn-cancel').classList.remove('d-none');any=true;}
-        else{status.textContent=(data.message||data.error||('HTTP '+resp.status));status.classList.add('text-danger');}
-      }catch(err){status.textContent=err.message||'Network error';status.classList.add('text-danger');}
-    }
-    if(any){window.__showToast?.('Upload complete');afterBox.classList.remove('d-none');}
-    btnUpload.disabled = rows.querySelectorAll('tr').length===0;
-  });
-
-  async function cancelCreated(tr){
-    if(!tr._createdId) return;
-    const s=tr.querySelector('.status'); s.textContent='Cancelling…';
-    try{
-      const resp=await fetch(`{% url 'shop:uploader_api_delete' 0 %}`.replace('0/',tr._createdId+'/'),{method:'POST',headers:{'X-CSRFToken':window.__csrftoken,'X-Requested-With':'XMLHttpRequest'}});
-      const data=await resp.json(); if(resp.ok&&data.ok){s.textContent='Cancelled';s.classList.add('text-warning');tr.remove();updateButtons();} else {s.textContent=data.error||('HTTP '+resp.status);s.classList.add('text-danger');}
-    }catch(e){s.textContent='Network error';s.classList.add('text-danger');}
-  }
-
-  btnClear.addEventListener('click',()=>{rows.innerHTML='';updateButtons();afterBox.classList.add('d-none');});
-})();
-</script>
-{% endblock %}
