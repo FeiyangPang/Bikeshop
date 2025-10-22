@@ -9,6 +9,7 @@
 }
 html,body{height:100%;}
 body{background:var(--bg);color:var(--text);overflow-x:hidden;}
+
 .page-wrapper{position:relative;z-index:5;}
 
 .background-aurora{position:fixed;inset:0;z-index:-1;overflow:hidden;pointer-events:none;}
