@@ -31,6 +31,8 @@ bikeshop/
 
 ## Quickstart
 
+Now available on website: https://bikeshop-u77v.onrender.com/
+
 1) Create a virtualenv:
 ```
 cd bikeshop
